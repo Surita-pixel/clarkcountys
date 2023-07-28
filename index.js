@@ -53,9 +53,11 @@ async function getSearchResults() {
     try {
         const all = []
         let results = [1];
-        let pageNumber = [1]
-        var streets = "Circle"
-        const res1 = await axios.get("https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx")
+        let pageNumber = 1
+        var streets = "Boulder"
+        const res1 = await axios.get(
+            "https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx"
+            )
         const html1 = res1.data;
         const $1 = cheerio.load(html1)
         let __VIEWSTATE = $1("#__VIEWSTATE").val()
@@ -85,7 +87,7 @@ async function getSearchResults() {
                     "cache-control": "max-age=0",
                     "content-type": "application/x-www-form-urlencoded",
                     "sec-ch-ua": "\"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"114\", \"Google Chrome\";v=\"114\"",
-                    "sec-ch-ua-mobgiile": "?0",
+                    "sec-ch-ua-mobile": "?0",
                     "sec-ch-ua-platform": "\"Windows\"",
                     "sec-fetch-dest": "document",
                     "sec-fetch-mode": "navigate",
@@ -99,12 +101,12 @@ async function getSearchResults() {
                 body,
                 "method": "POST"
             });
-
-            console.log(await res.text())
-            results = await findResultsPage(await res.text()); // Actualiza los resultados con la llamada a findResultsPage
+            const html = await res.text()
+            results =await findResultsPage(html); // Actualiza los resultados con la llamada a findResultsPage
             all.push(...results);
             pageNumber++;
-            const $ = cheerio.load(html1)
+
+            const $ = cheerio.load(html)
             __VIEWSTATE = $("#__VIEWSTATE").val()
             __VIEWSTATEGENERATOR = $("#__VIEWSTATEGENERATOR").val()
             __EVENTVALIDATION = $("#__EVENTVALIDATION").val()
