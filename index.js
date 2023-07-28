@@ -1,6 +1,49 @@
 import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
 import axios from 'axios';
+import * as fs from 'fs'
+
+
+function readLocalJSON() {
+    try {
+      // Read local JSON
+      const data = fs.readFileSync('clark-county-streets.json', 'utf-8');
+      
+      // JSON object
+      const jsonData = JSON.parse(data);
+      
+      // Check if the object is an array and not empty
+      if (Array.isArray(jsonData) && jsonData.length > 0) {
+        // Use a set to store unique streets while processing
+        const uniqueStreetsSet = new Set();
+  
+        // Process each street in the array to get only the name
+        jsonData.forEach(street => {
+          // Remove the ZIP code (5 digits at the end) using a regular expression
+          const streetName = street.replace(/\s+\d{5}$/, '');
+          
+          // Remove the leading number and the ordinal suffix (th, st, nd, rd) if any
+          const cleanedStreetName = streetName.replace(/^\d+\s*?(st|nd|rd|th)?\s*/, '');
+          
+          // Add the cleaned street name to the set (duplicates will not be automatically added)
+          uniqueStreetsSet.add(cleanedStreetName);
+        });
+  
+        // Convert the set to an array and return it
+        return Array.from(uniqueStreetsSet);
+      } else {
+        console.log('The JSON does not contain valid data.');
+        return []; // Return an empty array if there is no valid data
+      }
+    } catch (error) {
+      console.error('Error while reading the JSON file:', error.message);
+      return []; // Return an empty array in case of an error
+    }
+  }
+  
+
+
+
 
 async function getParcelsFromStreet() {
     try {
@@ -37,90 +80,114 @@ async function findResultsPage(html) {
     const $ = cheerio.load(html);
     const rows = $("#pnlList").find("tr");
     rows.each((i, row) => {
-        if (i === 0) return;
-        const address = $(row).find("td").text().trim()?.split("  ").join(" ");
-        const city = $(row).find("td").eq(1).text().trim();
-        const parcelNumber = $(row).find("td").eq(2).text().trim();
-        results.push({
-            address,
-            city,
-            parcelNumber
-        })
+      if (i === 0) return;
+      const address = $(row).find("td").text().trim()?.split("  ").join(" ");
+      const city = $(row).find("td").eq(1).text().trim();
+      const parcelNumber = $(row).find("td").eq(2).text().trim();
+  
+      results.push({
+        address,
+        city,
+        parcelNumber
+      });
     });
-    return results; // Devuelve el array de resultados
-}
-async function getSearchResults() {
-    try {
-        const all = []
-        let results = [1];
-        let pageNumber = 1
-        var streets = "Boulder"
-        const res1 = await axios.get(
-            "https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx"
-            )
-        const html1 = res1.data;
-        const $1 = cheerio.load(html1)
-        let __VIEWSTATE = $1("#__VIEWSTATE").val()
-        let __VIEWSTATEGENERATOR = $1("#__VIEWSTATEGENERATOR").val()
-        let __EVENTVALIDATION = $1("#__EVENTVALIDATION").val()
-
-
-        while (results.length) {
-            let body = `__LASTFOCUS=&__EVENTTARGET=${pageNumber !== 1 && "gvList"
-                }&__EVENTARGUMENT=${encodeURIComponent(
-                    `Page$${pageNumber}`
-                )}&__VIEWSTATE=${encodeURIComponent(
-                    __VIEWSTATE
-                )}&__VIEWSTATEGENERATOR=${encodeURIComponent(
-                    __VIEWSTATEGENERATOR
-                )}&__EVENTVALIDATION=${encodeURIComponent(__EVENTVALIDATION)}`;
-
-            if (pageNumber === 1) {
-                body += `&txtNumber=&lstDirection=unspecified&txtName=${encodeURIComponent(streets)}&lstType=unspecified&lstCity=unspecified&r1=rdCurrent&btnSubmit=Submit`
-            }
-            console.log(pageNumber);
-
-            const res = await fetch("https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx", {
-                "headers": {
-                    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                    "accept-language": "es-ES,es;q=0.9",
-                    "cache-control": "max-age=0",
-                    "content-type": "application/x-www-form-urlencoded",
-                    "sec-ch-ua": "\"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"114\", \"Google Chrome\";v=\"114\"",
-                    "sec-ch-ua-mobile": "?0",
-                    "sec-ch-ua-platform": "\"Windows\"",
-                    "sec-fetch-dest": "document",
-                    "sec-fetch-mode": "navigate",
-                    "sec-fetch-site": "same-origin",
-                    "sec-fetch-user": "?1",
-                    "upgrade-insecure-requests": "1",
-                    "cookie": "_gid=GA1.2.1765594136.1690433499; _ga_1NNBW3Q56L=GS1.1.1690433549.2.1.1690434261.0.0.0; __utma=264610653.339704305.1690323020.1690437510.1690437510.1; __utmz=264610653.1690437510.1.1.utmcsr=maps.clarkcountynv.gov|utmccn=(referral)|utmcmd=referral|utmcct=/; _ga=GA1.2.339704305.1690323020; _ga_1RDDBGSMQW=GS1.1.1690507516.4.0.1690507539.0.0.0",
-                    "Referer": "https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx",
-                    "Referrer-Policy": "strict-origin-when-cross-origin"
-                },
-                body,
-                "method": "POST"
-            });
-            const html = await res.text()
-            results =await findResultsPage(html); // Actualiza los resultados con la llamada a findResultsPage
-            all.push(...results);
-            pageNumber++;
-
-            const $ = cheerio.load(html)
-            __VIEWSTATE = $("#__VIEWSTATE").val()
-            __VIEWSTATEGENERATOR = $("#__VIEWSTATEGENERATOR").val()
-            __EVENTVALIDATION = $("#__EVENTVALIDATION").val()
-
-        }
-        return all
-    } catch (e) {
-        console.log(e.message)
+  
+    // Save the data to a CSV file if the object has any value in parcelNumber
+    const filteredResults = results.filter(result => result.parcelNumber);
+    if (filteredResults.length > 0) {
+      const csvData = filteredResults.map(result => `${result.address},${result.city},${result.parcelNumber}`).join('\n');
+  
+      // Use fs.writeFileSync with 'a' flag for appending data to the existing file
+      fs.writeFileSync('clarkcounty.csv', csvData, { encoding: 'utf-8', flag: 'a' });
+  
+      console.log('Data saved to clarkcounty.csv');
     }
-}
+  
+    return results; // Return the array of results
+  }
+  
+  async function getSearchResults(street) {
+    try {
+      const all = [];
+      let results = [1];
+      let pageNumber = 1;
+  
+      const res1 = await axios.get("https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx");
+      const html1 = res1.data;
+      const $1 = cheerio.load(html1);
+      let __VIEWSTATE = $1("#__VIEWSTATE").val();
+      let __VIEWSTATEGENERATOR = $1("#__VIEWSTATEGENERATOR").val();
+      let __EVENTVALIDATION = $1("#__EVENTVALIDATION").val();
+  
+      while (results.length) {
+        let body = `__LASTFOCUS=&__EVENTTARGET=${pageNumber !== 1 ? "gvList" : ""}&__EVENTARGUMENT=${encodeURIComponent(
+          `Page$${pageNumber}`
+        )}&__VIEWSTATE=${encodeURIComponent(__VIEWSTATE)}&__VIEWSTATEGENERATOR=${encodeURIComponent(
+          __VIEWSTATEGENERATOR
+        )}&__EVENTVALIDATION=${encodeURIComponent(__EVENTVALIDATION)}`;
+  
+        if (pageNumber === 1) {
+          body += `&txtNumber=&lstDirection=unspecified&txtName=${encodeURIComponent(
+            street
+          )}&lstType=unspecified&lstCity=unspecified&r1=rdCurrent&btnSubmit=Submit`;
+        }
+        console.log(pageNumber);
+  
+        const res = await fetch("https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx", {
+          "headers": {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "es-ES,es;q=0.9",
+            "cache-control": "max-age=0",
+            "content-type": "application/x-www-form-urlencoded",
+            "sec-ch-ua": "\"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"114\", \"Google Chrome\";v=\"114\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "cookie": "_gid=GA1.2.1765594136.1690433499; _ga_1NNBW3Q56L=GS1.1.1690433549.2.1.1690434261.0.0.0; __utma=264610653.339704305.1690323020.1690437510.1690437510.1; __utmz=264610653.1690437510.1.1.utmcsr=maps.clarkcountynv.gov|utmccn=(referral)|utmcmd=referral|utmcct=/; _ga=GA1.2.339704305.1690323020; _ga_1RDDBGSMQW=GS1.1.1690507516.4.0.1690507539.0.0.0",
+            "Referer": "https://maps.clarkcountynv.gov/assessor/AssessorParcelDetail/site.aspx",
+            "Referrer-Policy": "strict-origin-when-cross-origin"
+          },
+          body,
+          "method": "POST"
+        });
+  
+        const html = await res.text();
+        results = await findResultsPage(html); // Update results with the call to findResultsPage
+        all.push(...results);
+        pageNumber++;
+  
+        const $ = cheerio.load(html);
+        __VIEWSTATE = $("#__VIEWSTATE").val();
+        __VIEWSTATEGENERATOR = $("#__VIEWSTATEGENERATOR").val();
+        __EVENTVALIDATION = $("#__EVENTVALIDATION").val();
+      }
+  
+      return all;
+    } catch (e) {
+      console.log(e.message);
+    }
+  }
+  
+const streets = readLocalJSON();
 (async () => {
-    const results = await getSearchResults()
-    console.log(results)
-})();
+    const streets = readLocalJSON();
+    for (const street of streets) {
+      console.log(`Processing street: ${street}`);
+      const results = await getSearchResults(street);
+  
+      // Here you can perform any action with the results obtained for each street
+      // For example, storing them in a database, saving them to a file, etc.
+      console.log(`Results for ${street}:`);
+      console.log(results);
+    }
+    // const results = await getSearchResults()
+    // console.log(results)
+  })();
+  
 // getParcelsFromStreet();
 
 
