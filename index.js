@@ -172,22 +172,37 @@ async function findResultsPage(html) {
     }
   }
   
+  async function scrapeStreetsConcurrently(streets) {
+    try {
+      const promises = streets.map((street) => getSearchResults(street));
+      const resultsArray = await Promise.all(promises);
+  
+      // Print or process the results for each street
+      for (let i = 0; i < streets.length; i++) {
+        const street = streets[i];
+        const results = resultsArray[i];
+        
+        console.log(`Results for ${street}:`);
+        console.log(results);
+      }
+    } catch (e) {
+      console.log(e.message);
+    }
+  }
 const streets = readLocalJSON();
 (async () => {
     const streets = readLocalJSON();
-    for (const street of streets) {
-      console.log(`Processing street: ${street}`);
-      const results = await getSearchResults(street);
-  
-      // Here you can perform any action with the results obtained for each street
-      // For example, storing them in a database, saving them to a file, etc.
-      console.log(`Results for ${street}:`);
-      console.log(results);
+    console.log(`Number of streets to scrape: ${streets.length}`);
+    
+    // Divide the streets into smaller chunks if needed (for better concurrency)
+    const chunkSize = 10;
+    for (let i = 0; i < streets.length; i += chunkSize) {
+      const streetsChunk = streets.slice(i, i + chunkSize);
+      console.log(`Scraping streets ${i + 1} to ${i + streetsChunk.length}`);
+      await scrapeStreetsConcurrently(streetsChunk);
     }
-    // const results = await getSearchResults()
-    // console.log(results)
   })();
-  
+
 // getParcelsFromStreet();
 
 
